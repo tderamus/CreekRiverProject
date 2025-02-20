@@ -6,8 +6,9 @@ using Microsoft.AspNetCore.Http.Json;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 // allows passing datetimes without time zone data 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -27,33 +28,37 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// API CALLS TO GET DATABASE DATA
 
-app.MapGet("/weatherforecast", () =>
+// GET ALL CAMPSITES
+app.MapGet("/api/campsites", (CreekRiverDbContext db) =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+    if (db.Campsites == null)
+    {
+        return Results.NotFound();
+    }
+    var campsites = db.Campsites.Include(c => c.CampsiteType).ToList();
+    return Results.Ok(campsites);
+});
 
+// GET CAMPSITE BY ID
+app.MapGet("/api/campsites/{id}", (CreekRiverDbContext db, int id) =>
+{
+    if (db.Campsites == null)
+    {
+        return Results.NotFound();
+    }   
+    var campsite = db.Campsites.Include(c => c.CampsiteType).SingleOrDefault(c => c.Id == id);
+    if (campsite == null)
+    {
+        return Results.NotFound();
+    }
+    return Results.Ok(campsite);
+});
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
