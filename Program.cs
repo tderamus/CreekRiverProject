@@ -102,4 +102,68 @@ app.MapPut("/api/campsites/{id}", (CreekRiverDbContext db, int id, Campsite camp
     return Results.NoContent();
 });
 
+// GET RESERVATIONS
+app.MapGet("/api/reservations", (CreekRiverDbContext db) =>
+{
+    return db.Reservations
+        .Include(r => r.UserProfile)
+        .Include(r => r.Campsite)
+        .ThenInclude(c => c.CampsiteType)
+        .OrderBy(res => res.CheckinDate)
+        .ToList();
+});
+
+// CREATE RESERVATION
+app.MapPost("/api/reservations", (CreekRiverDbContext db, Reservation newRes) =>
+{
+    // Check if the UserProfileId exists
+    var userProfile = db.UserProfiles.SingleOrDefault(up => up.Id == newRes.UserProfileId);
+    if (userProfile == null)
+    {
+        return Results.NotFound(new { message = "UserProfile not found" });
+    }
+
+    // Check if the CampsiteId exists
+    var campsite = db.Campsites.SingleOrDefault(c => c.Id == newRes.CampsiteId);
+    if (campsite == null)
+    {
+        return Results.NotFound(new { message = "Campsite not found" });
+    }
+
+    db.Reservations.Add(newRes);
+    db.SaveChanges();
+    return Results.Created($"/api/reservations/{newRes.Id}", newRes);
+});
+
+// CREATE USER PROFILE
+app.MapPost("/api/userprofiles", (CreekRiverDbContext db, UserProfile newUser) =>
+{
+    db.UserProfiles.Add(newUser);
+    db.SaveChanges();
+    return Results.Created($"/api/userprofiles/{newUser.Id}", newUser);
+});
+
+// GET USER PROFILE BY ID
+app.MapGet("/api/userprofiles/{id}", (CreekRiverDbContext db, int id) =>
+{
+    var userProfile = db.UserProfiles.Include(up => up.Reservations).ThenInclude(r => r.Campsite).ThenInclude(c => c.CampsiteType).SingleOrDefault(up => up.Id == id);
+    if (userProfile == null)
+    {
+        return Results.NotFound();
+    }
+    return Results.Ok(userProfile);
+});
+
+// GET ALL USER PROFILES
+app.MapGet("/api/userprofiles", (CreekRiverDbContext db) =>
+{
+    var userProfiles = db.UserProfiles.Include(up => up.Reservations).ThenInclude(r => r.Campsite).ThenInclude(c => c.CampsiteType).ToList();
+    if (userProfiles == null)
+    {
+        return Results.NotFound();
+    }
+    return Results.Ok(userProfiles);
+});
+
+
 app.Run();
